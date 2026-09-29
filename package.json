@@ -1,0 +1,42 @@
+{
+  "name": "zcode-oss-cli",
+  "version": "0.16.9",
+  "description": "Community npm packaging of the open-source ZCode CLI — the official agent runtime and TUI, built from source and published as an installable global CLI.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "bin": {
+    "zcode": "dist/zcode.cjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "build": "node scripts/build-package.mjs",
+    "verify": "node scripts/verify-package.mjs",
+    "prepublishOnly": "node scripts/verify-package.mjs"
+  },
+  "dependencies": {
+    "@mbears/opentui-core": "0.2.15",
+    "@mbears/opentui-react": "0.2.15",
+    "koffi": "2.15.6",
+    "playwright-core": "1.59.1",
+    "react": "19.2.5",
+    "react-devtools-core": "7.0.1",
+    "shiki": "4.1.0",
+    "web-tree-sitter": "0.25.10",
+    "ws": "8.18.0",
+    "zod": "4.6.5"
+  },
+  "keywords": [
+    "zcode",
+    "cli",
+    "tui",
+    "ai",
+    "agent",
+    "coding-agent",
+    "llm"
+  ]
+}
