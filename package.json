@@ -4,6 +4,14 @@
   "description": "Community npm packaging of the open-source ZCode CLI — the official agent runtime and TUI, built from source and published as an installable global CLI.",
   "type": "module",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/meteorhq/zcode-community-cli.git"
+  },
+  "homepage": "https://github.com/meteorhq/zcode-community-cli#readme",
+  "bugs": {
+    "url": "https://github.com/meteorhq/zcode-community-cli/issues"
+  },
   "bin": {
     "zcode": "dist/zcode.cjs"
   },
