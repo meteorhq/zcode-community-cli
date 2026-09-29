@@ -1,4 +1,4 @@
-# zcode-oss-cli
+# zcode-community-cli
 
 Community npm packaging of the **open-source ZCode CLI** — the official agent runtime and TUI from [zai-org/ZCode](https://github.com/zai-org/ZCode), built from source and published as a single installable global CLI.
 
@@ -7,7 +7,7 @@ Community npm packaging of the **open-source ZCode CLI** — the official agent 
 ## Install
 
 ```bash
-npm install -g zcode-oss-cli
+npm install -g zcode-community-cli
 ```
 
 Requirements:
@@ -63,6 +63,6 @@ Versions mirror `apps/zcode-cli/package.json` in the upstream repo. If a packagi
 
 社区维护的 **ZCode 开源 CLI 的 npm 打包**：上游 [zai-org/ZCode](https://github.com/zai-org/ZCode) 开源了 CLI 源码但未发布 npm 包，本仓库用上游自己的构建脚本从源码构建，并以单一 npm 包形式分发（`bin` 命令仍为 `zcode`）。
 
-- 安装：`npm install -g zcode-oss-cli`（要求 Node ≥ 22.18，推荐 Node 24）。
+- 安装：`npm install -g zcode-community-cli`（要求 Node ≥ 22.18，推荐 Node 24）。
 - 非官方包，与 Z.AI 无隶属关系；产物溯源信息见包内 `dist/BUILD_INFO.json`。
 - 本地重新构建：`npm run build -- --source <ZCode 源码路径>`，随后 `npm run verify` 做冒烟验证。

@@ -1,5 +1,5 @@
 {
-  "name": "zcode-oss-cli",
+  "name": "zcode-community-cli",
   "version": "0.16.9",
   "description": "Community npm packaging of the open-source ZCode CLI — the official agent runtime and TUI, built from source and published as an installable global CLI.",
   "type": "module",
