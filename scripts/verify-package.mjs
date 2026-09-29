@@ -105,6 +105,19 @@ await check("npm pack tarball includes vendored runtime", async () => {
 const buildInfo = JSON.parse(await readFile(join(distRoot, "BUILD_INFO.json"), "utf8"));
 console.log(`[verify] built from ${buildInfo.sourceCommit} (upstream zcode-cli ${buildInfo.upstreamZcodeCliVersion})`);
 
+await check("package version matches upstream policy", async () => {
+  const own = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
+  const upstream = buildInfo.upstreamZcodeCliVersion;
+  // Policy: mirror the upstream apps/zcode-cli version; packaging-only
+  // republishes of the same upstream may append a prerelease suffix (-1, -2).
+  const ok = own.version === upstream || own.version.startsWith(`${upstream}-`);
+  if (!ok) {
+    throw new Error(
+      `package.json version ${own.version} must equal upstream ${upstream} or be ${upstream}-N`,
+    );
+  }
+});
+
 if (failures.length > 0) {
   console.error(`\n[verify] ${failures.length} check(s) failed: ${failures.join(", ")}`);
   process.exit(1);

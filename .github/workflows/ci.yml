@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    name: Build & verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # The upstream build runs through pnpm; pin the same version as the
+      # source repo declares in its packageManager field.
+      - run: npm install -g pnpm@10.33.2
+
+      # Warm cache for the upstream monorepo install, keyed by the pinned ref.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('upstream.json') }}
+
+      - name: Install packaging repo dependencies
+        run: npm install --no-fund --no-audit
+
+      - name: Build from upstream source (auto clone)
+        run: node scripts/build-package.mjs
+
+      - name: Verify package
+        run: npm run verify

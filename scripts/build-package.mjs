@@ -1,48 +1,64 @@
 #!/usr/bin/env node
 /**
- * Build the standalone zcode-oss-cli package from a local checkout of the
- * open-source ZCode repository (https://github.com/zalo/zcode style monorepo).
+ * Build the standalone zcode-community-cli package from the open-source ZCode
+ * repository (https://github.com/zai-org/ZCode).
  *
  * What this does:
- *  1. Build the CLI bundle (`dist/zcode.cjs`) and its dependency packages
+ *  1. Resolve the ZCode source repo: --source flag, ZCODE_SOURCE env, a local
+ *     checkout next to this repo, or — as a fully self-contained fallback —
+ *     a shallow clone of the pinned ref from upstream.json into .upstream/
+ *     (this is what CI uses; dependencies are installed automatically).
+ *  2. Build the CLI bundle (`dist/zcode.cjs`) and its dependency packages
  *     inside the source repo, using the same commands as upstream
  *     (`turbo run build` + `node scripts/build.mjs --desktop-agent`).
- *  2. Stage the runtime artifacts into this package's `dist/`:
+ *  3. Stage the runtime artifacts into this package's `dist/`:
  *     zcode.cjs, provider config, third-party notices.
- *  3. Vendor the runtime-resolved `@zcode/*` workspace packages (tui and its
+ *  4. Vendor the runtime-resolved `@zcode/*` workspace packages (tui and its
  *     workspace deps) under `dist/node_modules/@zcode/`. The bundle keeps
  *     `@zcode/tui` external and loads it through dynamic import at runtime,
  *     so those packages must ship next to the bundle exactly like they sit
  *     in the source workspace's node_modules.
- *  4. Record provenance in dist/BUILD_INFO.json.
+ *  5. Record provenance in dist/BUILD_INFO.json.
  *
  * Usage:
  *   node scripts/build-package.mjs [--source <path>] [--no-build]
- *
- * Source repo resolution order: --source flag, ZCODE_SOURCE env,
- * ../ZCode, ../../Projects/ZCode.
+ *                                  [--upstream] [--refresh] [--upstream-ref <ref>]
  */
 import { execFileSync } from "node:child_process";
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import process from "node:process";
 
 const packageRoot = resolve(import.meta.dirname, "..");
 const distRoot = join(packageRoot, "dist");
+const upstreamConfig = JSON.parse(readFileSync(join(packageRoot, "upstream.json"), "utf8"));
 
 const log = (message) => console.log(`[build-package] ${message}`);
 const run = (command, args, options = {}) =>
   execFileSync(command, args, { stdio: "inherit", ...options });
 
 function parseArgs(argv) {
-  const args = { source: undefined, build: true };
+  const args = {
+    source: undefined,
+    build: true,
+    upstream: false,
+    refresh: false,
+    upstreamRef: undefined,
+  };
   for (let index = 0; index < argv.length; index += 1) {
     if (argv[index] === "--source") {
       args.source = argv[index + 1];
       index += 1;
     } else if (argv[index] === "--no-build") {
       args.build = false;
+    } else if (argv[index] === "--upstream") {
+      args.upstream = true;
+    } else if (argv[index] === "--refresh") {
+      args.refresh = true;
+    } else if (argv[index] === "--upstream-ref") {
+      args.upstreamRef = argv[index + 1];
+      index += 1;
     } else {
       throw new Error(`Unknown argument: ${argv[index]}`);
     }
@@ -50,31 +66,55 @@ function parseArgs(argv) {
   return args;
 }
 
-function resolveSourcePath(args) {
-  const candidates = [
-    args.source,
-    process.env.ZCODE_SOURCE,
-    "../ZCode",
-    "../../Projects/ZCode",
-  ].filter(Boolean);
-  for (const candidate of candidates) {
-    const path = resolve(packageRoot, candidate);
-    if (existsSync(join(path, "apps/zcode-cli/package.json"))) return path;
+const isSourceRepo = (path) => existsSync(join(path, "apps/zcode-cli/package.json"));
+
+/**
+ * Decide where the ZCode source comes from. Returns the source root; when the
+ * upstream clone path is taken and dependencies are not installed yet, the
+ * caller must run installSourceDeps before building.
+ */
+function ensureSourceRepo(args) {
+  const explicit = args.source ?? process.env.ZCODE_SOURCE;
+  if (explicit) {
+    const path = resolve(packageRoot, explicit);
+    if (!isSourceRepo(path)) throw new Error(`--source ${explicit} is not a ZCode checkout`);
+    return { root: path, needsInstall: !existsSync(join(path, "node_modules")) };
   }
-  throw new Error(
-    `Cannot locate the ZCode source repo (need apps/zcode-cli). Pass --source <path> or set ZCODE_SOURCE.`,
-  );
+
+  if (!args.upstream) {
+    const local = ["../ZCode", "../../Projects/ZCode"]
+      .map((candidate) => resolve(packageRoot, candidate))
+      .find(isSourceRepo);
+    if (local) return { root: local, needsInstall: !existsSync(join(local, "node_modules")) };
+  }
+
+  const ref = args.upstreamRef ?? upstreamConfig.ref;
+  if (/^[0-9a-f]{7,40}$/.test(ref)) {
+    throw new Error("Pin upstream.json to a tag or branch; shallow clone cannot fetch arbitrary commits");
+  }
+  const cacheDir = join(packageRoot, ".upstream/ZCode");
+  if (args.refresh || !isSourceRepo(cacheDir)) {
+    log(`Cloning ${upstreamConfig.repository}@${ref} (shallow) into ${cacheDir}`);
+    rmSync(join(packageRoot, ".upstream"), { recursive: true, force: true });
+    run("git", ["clone", "--depth", "1", "--branch", ref, upstreamConfig.repository, cacheDir]);
+    return { root: cacheDir, needsInstall: true, upstreamRef: ref };
+  }
+  log(`Reusing upstream clone at ${cacheDir} (pass --refresh to re-clone)`);
+  return {
+    root: cacheDir,
+    needsInstall: !existsSync(join(cacheDir, "node_modules")),
+    upstreamRef: ref,
+  };
 }
 
 /**
- * Resolve a `pnpm` runner. The user's machine may not expose pnpm on PATH
+ * Resolve a `pnpm` runner. The build machine may not expose pnpm on PATH
  * (e.g. when pnpm is managed by mise). Fall back to a corepack shim pinned
- * to the version declared in the source repo.
+ * to the version declared in the source repo's root manifest.
  */
 function resolvePnpmRunner(sourceRoot) {
-  const sourceManifest = JSON.parse(
-    readFileSync(join(sourceRoot, "apps/zcode-cli/package.json"), "utf8"));
-  const pnpmVersion = sourceManifest.packageManager.split("@")[1];
+  const rootManifest = JSON.parse(readFileSync(join(sourceRoot, "package.json"), "utf8"));
+  const pnpmVersion = rootManifest.packageManager.split("@")[1];
 
   const lookup = (command) => {
     try {
@@ -91,9 +131,9 @@ function resolvePnpmRunner(sourceRoot) {
   const corepack = lookup("corepack");
   if (corepack) {
     const shimDir = join(packageRoot, ".corepack-shim");
-    mkdir(shimDir, { recursive: true });
+    mkdirSync(shimDir, { recursive: true });
     const shim = join(shimDir, "pnpm");
-    writeFile(
+    writeFileSync(
       shim,
       `#!/bin/sh\nexec corepack pnpm@${pnpmVersion} "$@"\n`,
       { mode: 0o755 },
@@ -103,12 +143,21 @@ function resolvePnpmRunner(sourceRoot) {
   throw new Error("Neither pnpm nor corepack is available on PATH.");
 }
 
+/** Install the source repo's workspace dependencies (fresh upstream clone only). */
+function installSourceDeps(sourceRoot) {
+  const { command, prefix, envPath } = resolvePnpmRunner(sourceRoot);
+  const env = envPath
+    ? { ...process.env, PATH: `${envPath}:${process.env.PATH}` }
+    : process.env;
+  log("Installing source repo dependencies (pnpm install --frozen-lockfile)");
+  run(command, [...prefix, "install", "--frozen-lockfile"], { cwd: sourceRoot, env });
+}
+
 function buildInSourceRepo(sourceRoot) {
   const { command, prefix, envPath } = resolvePnpmRunner(sourceRoot);
   const env = envPath
     ? { ...process.env, PATH: `${envPath}:${process.env.PATH}` }
     : process.env;
-
   log(`Building dependency packages (turbo) in ${sourceRoot}`);
   run(
     command,
@@ -231,15 +280,16 @@ async function stageDist(sourceRoot) {
   }
 }
 
-async function writeBuildInfo(sourceRoot) {
+async function writeBuildInfo(sourceRoot, upstreamRef) {
   const commit = execFileSync("git", ["rev-parse", "HEAD"], {
     cwd: sourceRoot,
     encoding: "utf8",
   }).trim();
   const upstream = JSON.parse(await readFile(join(sourceRoot, "apps/zcode-cli/package.json"), "utf8"));
   const info = {
-    sourceRepository: "https://github.com/zai-org/ZCode",
+    sourceRepository: upstreamConfig.repository,
     sourceCommit: commit,
+    upstreamRef: upstreamRef ?? null,
     upstreamZcodeCliVersion: upstream.version,
     buildMode: "desktop-agent",
     buildDate: new Date().toISOString(),
@@ -257,13 +307,16 @@ async function writeBuildInfo(sourceRoot) {
 }
 
 const args = parseArgs(process.argv.slice(2));
-const sourceRoot = resolveSourcePath(args);
-log(`Source repo: ${sourceRoot}`);
+const source = ensureSourceRepo(args);
+log(`Source repo: ${source.root}`);
+if (source.needsInstall) {
+  installSourceDeps(source.root);
+}
 if (args.build) {
-  buildInSourceRepo(sourceRoot);
+  buildInSourceRepo(source.root);
 } else {
   log("Skipping source build (--no-build)");
 }
-await stageDist(sourceRoot);
-await writeBuildInfo(sourceRoot);
+await stageDist(source.root);
+await writeBuildInfo(source.root, source.upstreamRef);
 log("Done. Run `npm install` (once) and `npm run verify` to smoke-test the package.");

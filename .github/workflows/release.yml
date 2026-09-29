@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Build and verify but skip the actual npm publish"
+        type: boolean
+        default: false
+
+jobs:
+  publish:
+    name: Build & publish to npm
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      # Required for npm --provenance attestations.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm install -g pnpm@10.33.2
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('upstream.json') }}
+
+      - name: Install packaging repo dependencies
+        run: npm install --no-fund --no-audit
+
+      - name: Build from upstream source (auto clone)
+        run: node scripts/build-package.mjs
+
+      - name: Verify package
+        run: npm run verify
+
+      - name: Publish
+        if: ${{ !inputs.dry-run }}
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
