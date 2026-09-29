@@ -1,19 +1,29 @@
 # zcode-community-cli
 
-Community npm packaging of the **open-source ZCode CLI** — the official agent runtime and TUI from [zai-org/ZCode](https://github.com/zai-org/ZCode), built from source and published as a single installable global CLI.
+[![npm version](https://img.shields.io/npm/v/zcode-community-cli)](https://www.npmjs.com/package/zcode-community-cli)
+[![npm downloads](https://img.shields.io/npm/dm/zcode-community-cli)](https://www.npmjs.com/package/zcode-community-cli)
+[![Node](https://img.shields.io/node/v/zcode-community-cli)](https://www.npmjs.com/package/zcode-community-cli)
+[![CI](https://github.com/meteorhq/zcode-community-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/meteorhq/zcode-community-cli/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Upstream](https://img.shields.io/badge/upstream-zai--org%2FZCode%20v3.14.3-8A2BE2)](https://github.com/zai-org/ZCode)
 
-> **Unofficial.** This project is maintained by community members and is not affiliated with Z.AI. The `zcode` runtime inside is built unmodified from the upstream open-source repository; see provenance below.
+**中文** — 这是 [zai-org/ZCode](https://github.com/zai-org/ZCode) 官方开源 CLI 的社区 npm 打包。上游开源了完整的 CLI 源码（agent 运行时 + 终端 TUI），但一直没有发布 npm 包；本仓库用**上游自己的构建脚本**从源码构建，发布为单一 npm 包——安装后即可使用全局 `zcode` 命令。一行不改上游运行时代码，每次构建的源码 commit 都记录在包内 `dist/BUILD_INFO.json`，可完整溯源。非官方包，与 Z.AI 无隶属关系。
 
-## Install
+**English** — Community npm packaging of the official open-source [ZCode CLI](https://github.com/zai-org/ZCode). Upstream open-sources the full CLI (agent runtime + terminal TUI) but publishes no npm package; this repo builds it from source **using upstream's own toolchain** and ships it as a single npm package providing the global `zcode` command. Zero runtime-code changes — every tarball records the exact source commit it was built from (`dist/BUILD_INFO.json`). Unofficial and not affiliated with Z.AI.
+
+![zcode TUI](docs/screenshot.png)
+
+## Install · 安装
 
 ```bash
 npm install -g zcode-community-cli
+zcode   # 在任意项目目录启动，支持 glm 系列模型登录使用
 ```
 
-Requirements:
+Requirements · 环境要求：
 
-- **Node.js >= 22.18**（type-stripping support is required at runtime；Node 24 LTS recommended）
-- The native module `koffi` ships prebuilt binaries for common platforms; on minimal Linux systems a compiler toolchain may be needed if no prebuild matches.
+- **Node.js >= 22.18**（运行时依赖 Node 原生 TS type-stripping；推荐 Node 24 LTS）
+- 原生模块 `koffi` 对主流平台自带预编译产物；个别精简版 Linux 可能需要编译工具链
 
 ## Usage
 
@@ -68,15 +78,3 @@ Versions mirror `apps/zcode-cli/package.json` in the upstream repo. If a packagi
 - Upstream ZCode source: **Apache-2.0** (see `LICENSE`, full text from the upstream repository).
 - Bundled third-party components keep their original licenses; the consolidated notice file is shipped inside the package (`dist/THIRD-PARTY-NOTICES.md`, also printable via `zcode --licenses`).
 - Packaging scripts in this repository: Apache-2.0.
-
----
-
-## 中文说明
-
-社区维护的 **ZCode 开源 CLI 的 npm 打包**：上游 [zai-org/ZCode](https://github.com/zai-org/ZCode) 开源了 CLI 源码但未发布 npm 包，本仓库用上游自己的构建脚本从源码构建，并以单一 npm 包形式分发（`bin` 命令仍为 `zcode`）。
-
-- 安装：`npm install -g zcode-community-cli`（要求 Node ≥ 22.18，推荐 Node 24）。
-- 非官方包，与 Z.AI 无隶属关系；产物溯源信息见包内 `dist/BUILD_INFO.json`。
-- 构建方式：按 `upstream.json` 锁定的 tag 自动浅克隆上游源码（或复用本地 checkout），用上游官方构建脚本出包。
-- 本地重建：`npm run build && npm run verify`。
-- 自动发布：仓库自带 GitHub Actions（CI 每次推送构建验证；Release 手动触发发布到 npm，需在仓库 Secrets 配置 `NPM_TOKEN`）。
