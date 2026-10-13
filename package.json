@@ -23,6 +23,7 @@
   },
   "scripts": {
     "build": "node scripts/build-package.mjs",
+    "sync-version": "node scripts/sync-version.mjs",
     "verify": "node scripts/verify-package.mjs",
     "prepublishOnly": "node scripts/verify-package.mjs"
   },

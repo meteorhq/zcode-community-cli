@@ -65,7 +65,14 @@ If you keep a checkout of the upstream repo around (e.g. `~/Projects/ZCode`), th
 Setup once in the GitHub repo settings:
 
 1. Add an `NPM_TOKEN` secret (an npm access token with publish rights for `zcode-community-cli`).
-2. Releasing a new upstream version: bump `ref` in `upstream.json` to the new tag, bump `package.json` `version` to the upstream `apps/zcode-cli` version, commit, then run the Release workflow.
+2. Releasing a new upstream version:
+
+   ```bash
+   npm run sync-version -- v3.15.0   # the new upstream tag
+   git add -A && git commit -m "Track upstream v3.15.0" && git push
+   ```
+
+   The sync script fetches the upstream CLI version at that tag, updates `upstream.json` and `package.json`, and warns if that npm version already exists (then use a `<version>-N` suffix manually). CI on the push validates the new build. Finally, run the **Release** workflow on GitHub.
 
 `npm run verify` enforces the version policy: the package version must equal the upstream `apps/zcode-cli` version, or be `<upstream>-N` for packaging-only republishes.
 
