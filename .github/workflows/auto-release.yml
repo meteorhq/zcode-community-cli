@@ -1,0 +1,85 @@
+name: Auto-release
+
+# Daily check for new upstream ZCode releases. When a new tag is found, the
+# job syncs versions, commits the bump, builds, verifies and publishes to npm
+# in this single workflow. Note: the bot commit is pushed with GITHUB_TOKEN,
+# which deliberately does not re-trigger the push CI workflow — this job has
+# already run the same build + verify itself.
+
+on:
+  schedule:
+    # 02:00 UTC daily (10:00 Beijing). GitHub may delay scheduled runs.
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: write # push the version bump commit and create the GitHub release
+  id-token: write # npm --provenance attestations
+
+jobs:
+  check-and-publish:
+    name: Check upstream & publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm install -g pnpm@10.33.2
+
+      # Restore-keys fallback keeps the store warm across upstream bumps.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('upstream.json') }}
+          restore-keys: pnpm-store-${{ runner.os }}-
+
+      - name: Check upstream for new release
+        id: check
+        run: node scripts/check-upstream.mjs
+
+      - name: Commit version bump
+        if: steps.check.outputs.updated == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Track upstream ${{ steps.check.outputs.tag }} (zcode-community-cli@${{ steps.check.outputs.version }})"
+          git push
+
+      - name: Install packaging repo dependencies
+        if: steps.check.outputs.updated == 'true'
+        run: npm install --no-fund --no-audit
+
+      - name: Build from upstream source (auto clone)
+        if: steps.check.outputs.updated == 'true'
+        run: node scripts/build-package.mjs
+
+      - name: Verify package
+        if: steps.check.outputs.updated == 'true'
+        run: npm run verify
+
+      - name: Publish
+        if: steps.check.outputs.updated == 'true'
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub release
+        if: steps.check.outputs.updated == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.check.outputs.version }}" \
+            --title "zcode-community-cli ${{ steps.check.outputs.version }}" \
+            --notes "Built from upstream [${{ steps.check.outputs.tag }}](https://github.com/zai-org/ZCode/releases/tag/${{ steps.check.outputs.tag }}). Provenance (source commit) is recorded in dist/BUILD_INFO.json inside the npm tarball." \
+            --latest

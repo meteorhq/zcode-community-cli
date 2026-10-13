@@ -8,6 +8,12 @@ on:
         type: boolean
         default: false
 
+# Shared with auto-release.yml so a scheduled publish and a manual publish
+# can never race each other on npm.
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
 jobs:
   publish:
     name: Build & publish to npm

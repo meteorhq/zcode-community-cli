@@ -60,19 +60,22 @@ If you keep a checkout of the upstream repo around (e.g. `~/Projects/ZCode`), th
 ## Automated releases (GitHub Actions)
 
 - **CI** (`.github/workflows/ci.yml`): on every push/PR — build from the pinned upstream ref and run the full verification. No publish.
+- **Auto-release** (`.github/workflows/auto-release.yml`): runs daily on a schedule (also manually triggerable). Checks upstream for new release tags; when one appears it syncs versions, commits the bump, builds, verifies and publishes — completely hands-off. Publish versions follow the policy automatically (mirror the upstream version, or `-N` suffix if it is already on npm), and each publish is tagged as a GitHub release.
 - **Release** (`.github/workflows/release.yml`): manual `workflow_dispatch` — build, verify, then `npm publish --provenance --access public`. Toggle the `dry-run` input to rehearse without publishing.
 
 Setup once in the GitHub repo settings:
 
 1. Add an `NPM_TOKEN` secret (an npm access token with publish rights for `zcode-community-cli`).
-2. Releasing a new upstream version:
+2. Tracking a new upstream release manually (if you don't want to wait for the daily check):
 
    ```bash
    npm run sync-version -- v3.15.0   # the new upstream tag
    git add -A && git commit -m "Track upstream v3.15.0" && git push
    ```
 
-   The sync script fetches the upstream CLI version at that tag, updates `upstream.json` and `package.json`, and warns if that npm version already exists (then use a `<version>-N` suffix manually). CI on the push validates the new build. Finally, run the **Release** workflow on GitHub.
+   The sync script fetches the upstream CLI version at that tag, updates `upstream.json` and `package.json` (appending `-N` automatically if the version is already on npm), and CI on the push validates the new build.
+
+Caveat: GitHub disables scheduled workflows after 60 days without repository activity — a quiet upstream can silently pause the daily check. If that happens, re-enable the workflow (or push any commit).
 
 `npm run verify` enforces the version policy: the package version must equal the upstream `apps/zcode-cli` version, or be `<upstream>-N` for packaging-only republishes.
 
