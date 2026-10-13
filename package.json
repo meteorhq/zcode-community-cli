@@ -1,6 +1,6 @@
 {
   "name": "zcode-community-cli",
-  "version": "0.16.9",
+  "version": "0.16.9-1",
   "description": "Community npm packaging of the open-source ZCode CLI — the official agent runtime and TUI, built from source and published as an installable global CLI.",
   "type": "module",
   "license": "Apache-2.0",
