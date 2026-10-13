@@ -70,7 +70,11 @@ jobs:
 
       - name: Publish
         if: steps.check.outputs.updated == 'true'
-        run: npm publish --provenance --access public
+        # --tag latest is required: -N packaging-revision versions are semver
+        # prereleases, and npm refuses to publish those to the default tag
+        # without an explicit choice. They are the newest builds, so latest
+        # is the intended dist-tag.
+        run: npm publish --provenance --access public --tag latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
