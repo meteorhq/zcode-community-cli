@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
-      contents: read
+      contents: write # create the GitHub release
       # Required for npm --provenance attestations.
       id-token: write
     steps:
@@ -57,3 +57,15 @@ jobs:
         run: npm publish --provenance --access public --tag latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub release
+        if: ${{ !inputs.dry-run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG=$(node -p "require('./upstream.json').ref")
+          gh release create "v${VERSION}" \
+            --title "zcode-community-cli ${VERSION}" \
+            --notes "Built from upstream [${TAG}](https://github.com/zai-org/ZCode/releases/tag/${TAG}). Provenance (source commit) is recorded in dist/BUILD_INFO.json inside the npm tarball." \
+            --latest
