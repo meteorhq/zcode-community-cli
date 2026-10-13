@@ -93,13 +93,18 @@ function ensureSourceRepo(args) {
     throw new Error("Pin upstream.json to a tag or branch; shallow clone cannot fetch arbitrary commits");
   }
   const cacheDir = join(packageRoot, ".upstream/ZCode");
-  if (args.refresh || !isSourceRepo(cacheDir)) {
+  // The cache must match the pinned ref exactly: a stale clone at an old tag
+  // would silently build outdated artifacts under the new ref's name.
+  const refMarker = join(packageRoot, ".upstream/cloned-ref");
+  const cachedRef = existsSync(refMarker) ? readFileSync(refMarker, "utf8").trim() : undefined;
+  if (args.refresh || !isSourceRepo(cacheDir) || cachedRef !== ref) {
     log(`Cloning ${upstreamConfig.repository}@${ref} (shallow) into ${cacheDir}`);
     rmSync(join(packageRoot, ".upstream"), { recursive: true, force: true });
     run("git", ["clone", "--depth", "1", "--branch", ref, upstreamConfig.repository, cacheDir]);
+    writeFileSync(refMarker, ref);
     return { root: cacheDir, needsInstall: true, upstreamRef: ref };
   }
-  log(`Reusing upstream clone at ${cacheDir} (pass --refresh to re-clone)`);
+  log(`Reusing upstream clone at ${cacheDir} (${ref}; pass --refresh to re-clone)`);
   return {
     root: cacheDir,
     needsInstall: !existsSync(join(cacheDir, "node_modules")),
@@ -155,9 +160,18 @@ function installSourceDeps(sourceRoot) {
 
 function buildInSourceRepo(sourceRoot) {
   const { command, prefix, envPath } = resolvePnpmRunner(sourceRoot);
-  const env = envPath
+  const baseEnv = envPath
     ? { ...process.env, PATH: `${envPath}:${process.env.PATH}` }
     : process.env;
+  // Pin the built-in provider config to the source tree's committed copy.
+  // Without this, local builds inherit the installed ZCode Desktop app's
+  // runtime config path (~/.zcode/.../<app version>/...), whose schema can be
+  // newer than the pinned source and fail build-time validation. CI runners
+  // have no such config and already build from the repo copy.
+  const env = {
+    ...baseEnv,
+    ZCODE_BUILTIN_PROVIDER_CONFIG_FILE: join(sourceRoot, "config/provider/zcode-builtin.json"),
+  };
   log(`Building dependency packages (turbo) in ${sourceRoot}`);
   run(
     command,
@@ -298,10 +312,10 @@ async function writeBuildInfo(sourceRoot, upstreamRef) {
   await writeFile(join(distRoot, "BUILD_INFO.json"), `${JSON.stringify(info, null, 2)}\n`);
 
   const own = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
-  if (own.version !== upstream.version) {
+  if (own.version !== upstream.version && !own.version.startsWith(`${upstream.version}-`)) {
     log(
-      `WARNING: package version ${own.version} != upstream apps/zcode-cli version ${upstream.version}. ` +
-        "Update package.json version to stay aligned.",
+      `WARNING: package version ${own.version} is neither ${upstream.version} nor ${upstream.version}-N. ` +
+        "`npm run verify` will reject this; align package.json with the upstream CLI version.",
     );
   }
 }

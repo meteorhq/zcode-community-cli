@@ -2,15 +2,15 @@
 /**
  * Smoke-test the staged package before publishing.
  *
- *  1. `zcode.cjs --version` / `--licenses` must run (bundle is loadable).
+ *  1. `zcode.cjs --version` must run (bundle is loadable).
  *  2. The vendored @zcode/tui ESM tree must be importable from dist/ —
  *     this exercises the whole runtime chain: vendored workspace packages,
  *     root npm deps (react, opentui, shiki) and Node's TS type stripping
  *     for @zcode/shared's source-only exports.
- *  3. `npm pack --dry-run` must include dist/zcode.cjs AND the vendored
- *     dist/node_modules/@zcode/* files in the tarball (npm historically has
- *     special handling for node_modules paths; this guards against silently
- *     publishing a broken package).
+ *  3. `npm pack --dry-run` must include dist/zcode.cjs, the third-party
+ *     notices and the vendored dist/node_modules/@zcode/* files in the
+ *     tarball (npm historically has special handling for node_modules
+ *     paths; this guards against silently publishing a broken package).
  *
  * Requires `npm install` to have run in this repo first.
  */
@@ -61,11 +61,6 @@ await check("--version runs", async () => {
   console.log(`  ${output.trim()}`);
 });
 
-await check("--licenses runs", async () => {
-  const output = runCli(["--licenses"]);
-  if (!output.includes("Third-party notices")) throw new Error("licenses output looks wrong");
-});
-
 await check("vendored @zcode/tui imports", async () => {
   const tuiEntry = join(distRoot, "node_modules/@zcode/tui/dist/index.js");
   if (!existsSync(tuiEntry)) throw new Error(`${tuiEntry} not found`);
@@ -83,15 +78,16 @@ await check("npm pack tarball includes vendored runtime", async () => {
   });
   if (pack.status !== 0) throw new Error(`npm pack failed: ${pack.stderr}`);
   const output = pack.stdout + pack.stderr;
+  // .md files are stripped by the filter above; check notices separately.
   const files = output
     .split("\n")
     .map((line) => line.trim().replace(/^npm notice\s+/, ""))
     // Listing lines look like "266B dist/BUILD_INFO.json": keep the path token.
-    .map((line) => line.split(/\s+/).at(-1))
-    .filter((line) => line.endsWith(".cjs") || line.endsWith(".js") || line.endsWith(".json"));
+    .map((line) => line.split(/\s+/).at(-1));
   const required = [
     "dist/zcode.cjs",
     "dist/provider/zcode-builtin.json",
+    "dist/THIRD-PARTY-NOTICES.md",
     "dist/node_modules/@zcode/tui/dist/index.js",
     "dist/node_modules/@zcode/shared/package.json",
     "dist/BUILD_INFO.json",

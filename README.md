@@ -31,7 +31,6 @@ Requirements · 环境要求：
 zcode            # open the full-screen TUI in the current directory
 zcode doctor     # inspect runtime and packaging assumptions
 zcode --version
-zcode --licenses # print bundled third-party notices
 ```
 
 Other built-in commands follow upstream (`app-server`, `login [zai|bigmodel]`, `logout`, `commands list`, …). Run `zcode --help` or see the upstream repo for details.
@@ -86,5 +85,5 @@ Versions mirror `apps/zcode-cli/package.json` in the upstream repo. If a packagi
 ## License
 
 - Upstream ZCode source: **Apache-2.0** (see `LICENSE`, full text from the upstream repository).
-- Bundled third-party components keep their original licenses; the consolidated notice file is shipped inside the package (`dist/THIRD-PARTY-NOTICES.md`, also printable via `zcode --licenses`).
+- Bundled third-party components keep their original licenses; the consolidated notice file is shipped inside the package (`dist/THIRD-PARTY-NOTICES.md`).
 - Packaging scripts in this repository: Apache-2.0.
